@@ -38,17 +38,13 @@ fn parse_request(request: Request, mut stream: &TcpStream) {
     let response = match iter.next().unwrap() {
         "echo" => {
             let echoed_string: String = iter.collect();
-            println!("{echoed_string}");
-            let length = echoed_string.len();
 
             format!(
-                "
-            HTTP/1.1 200 OK\r\n
-            Content-Type: text/plain\r\n
-            Content-Length: {length}\r\n
-            \r\n
-            {echoed_string}\r\n
-            "
+                "{}\r\n{}\r\nContent-Length: {}\r\n\r\n{}\r\n",
+                "HTTP/1.1 200 OK",
+                "Content-Type: text/plain",
+                echoed_string.len(),
+                echoed_string
             )
         }
         "" => format!("HTTP/1.1 200 OK\r\n\r\n"),
