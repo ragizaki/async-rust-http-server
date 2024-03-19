@@ -31,22 +31,29 @@ fn read_stream(mut stream: &TcpStream) -> Request {
 
 fn parse_request(request: Request, mut stream: &TcpStream) {
     let mut iter = request.path.split("/");
-    assert_eq!(iter.next().unwrap(), "echo");
 
-    let echoed_string = iter.next().unwrap();
-    let length = echoed_string.len();
+    // throw away value
+    iter.next();
 
-    let response = format!(
-        "
-    HTTP/1.1 200 OK\r\n
-    Content-Type: text/plain\r\n
-    Content-Length: {length}\r\n
-    \r\n
-    {echoed_string}\r\n\r\n
-    "
-    );
+    let response = match iter.next().unwrap() {
+        "echo" => {
+            let echoed_string = iter.next().unwrap();
+            let length = echoed_string.len();
 
-    stream.write(response.as_bytes());
+            format!(
+                "
+            HTTP/1.1 200 OK\r\n
+            Content-Type: text/plain\r\n
+            Content-Length: {length}\r\n
+            \r\n
+            {echoed_string}\r\n\r\n
+            "
+            )
+        }
+        _ => format!("HTTP/1.1 200 OK\r\n\r\n"),
+    };
+
+    let _ = stream.write(response.as_bytes());
 }
 
 struct Request {
