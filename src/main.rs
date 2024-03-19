@@ -12,11 +12,7 @@ fn main() -> std::io::Result<()> {
         match stream {
             Ok(mut stream) => {
                 let request = read_stream(&mut stream);
-                let response = match request.path.as_str() {
-                    "/" => "HTTP/1.1 200 OK\r\n\r\n",
-                    _ => "HTTP/1.1 404 Not Found\r\n\r\n",
-                };
-                stream.write(response.as_bytes())?;
+                parse_request(request, &mut stream);
             }
             Err(e) => {
                 println!("error: {}", e);
@@ -31,6 +27,26 @@ fn read_stream(mut stream: &TcpStream) -> Request {
     let num_bytes = stream.read(&mut buf).unwrap();
     let data = std::str::from_utf8(&buf[..num_bytes]).unwrap();
     Request::from_str(data).expect("Failed to parse data")
+}
+
+fn parse_request(request: Request, mut stream: &TcpStream) {
+    let mut iter = request.path.split("/");
+    assert_eq!(iter.next().unwrap(), "echo");
+
+    let echoed_string = iter.next().unwrap();
+    let length = echoed_string.len();
+
+    let response = format!(
+        "
+    HTTP/1.1 200 OK\r\n
+    Content-Type: text/plain\r\n
+    Content-Length: {length}\r\n
+    \r\n
+    {echoed_string}\r\n\r\n
+    "
+    );
+
+    stream.write(response.as_bytes());
 }
 
 struct Request {
