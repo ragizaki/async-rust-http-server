@@ -50,6 +50,7 @@ fn parse_request(request: Request, mut stream: &TcpStream) {
             "
             )
         }
+        "" => format!("HTTP/1.1 200 OK\r\n\r\n"),
         _ => format!("HTTP/1.1 404 Not Found\r\n\r\n"),
     };
 
