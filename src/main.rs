@@ -57,6 +57,9 @@ impl FromStr for Request {
         // processing headers
         let mut headers = HashMap::new();
         while let Some(header) = iter.next() {
+            if header.is_empty() {
+                break;
+            }
             let mut header_iter = header.split_whitespace();
             let key = header_iter.next().unwrap().to_string();
             let val = header_iter.next().unwrap().to_string();
