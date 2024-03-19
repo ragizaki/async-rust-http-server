@@ -1,5 +1,9 @@
+use std::collections::HashMap;
 use std::io::prelude::*;
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
+use std::str::FromStr;
+
+const MAX_BUF_SIZE: usize = 1024;
 
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
@@ -7,9 +11,11 @@ fn main() -> std::io::Result<()> {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                let mut buf = [0; 128];
-                stream.read(&mut buf)?;
-                let response = "HTTP/1.1 200 OK\r\n\r\n";
+                let request = read_stream(&mut stream);
+                let response = match request.path.as_str() {
+                    "/" => "HTTP/1.1 200 OK\r\n\r\n",
+                    _ => "HTTP/1.1 404 Not Found\r\n\r\n",
+                };
                 stream.write(response.as_bytes())?;
             }
             Err(e) => {
@@ -18,4 +24,49 @@ fn main() -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn read_stream(mut stream: &TcpStream) -> Request {
+    let mut buf = [0; MAX_BUF_SIZE];
+    let num_bytes = stream.read(&mut buf).unwrap();
+    let data = std::str::from_utf8(&buf[..num_bytes]).unwrap();
+    Request::from_str(data).expect("Failed to parse data")
+}
+
+struct Request {
+    method: String,
+    path: String,
+    headers: HashMap<String, String>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParseRequestError;
+
+impl FromStr for Request {
+    type Err = ParseRequestError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.lines();
+
+        // processing status line
+        let status_line = iter.next().unwrap();
+        let mut parts = status_line.split_whitespace();
+        let method = parts.next().unwrap().to_string();
+        let path = parts.next().unwrap().to_string();
+
+        // processing headers
+        let mut headers = HashMap::new();
+        while let Some(header) = iter.next() {
+            let mut header_iter = header.split_whitespace();
+            let key = header_iter.next().unwrap().to_string();
+            let val = header_iter.next().unwrap().to_string();
+            headers.insert(key, val);
+        }
+
+        Ok(Request {
+            method,
+            path,
+            headers,
+        })
+    }
 }
