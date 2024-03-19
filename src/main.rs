@@ -38,6 +38,7 @@ fn parse_request(request: Request, mut stream: &TcpStream) {
     let response = match iter.next().unwrap() {
         "echo" => {
             let echoed_string: String = iter.collect();
+            println!("{echoed_string}");
             let length = echoed_string.len();
 
             format!(
@@ -46,7 +47,7 @@ fn parse_request(request: Request, mut stream: &TcpStream) {
             Content-Type: text/plain\r\n
             Content-Length: {length}\r\n
             \r\n
-            {echoed_string}\r\n\r\n
+            {echoed_string}\r\n
             "
             )
         }
