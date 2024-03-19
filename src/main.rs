@@ -48,7 +48,8 @@ async fn parse_request(request: Request, stream: &mut TcpStream) {
         _ => format!("HTTP/1.1 404 Not Found\r\n\r\n"),
     };
 
-    let _ = stream.write(response.as_bytes()).await;
+    stream.write(response.as_bytes()).await.unwrap();
+    stream.flush().await.unwrap();
 }
 
 fn format_ok_response(body: String) -> String {
