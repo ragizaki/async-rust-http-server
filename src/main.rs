@@ -9,15 +9,17 @@ const MAX_BUF_SIZE: usize = 1024;
 async fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:4221").await?;
 
-    while let Ok((mut socket, _)) = listener.accept().await {
-        let request = match read_stream(&mut socket).await {
-            Ok(req) => req,
-            Err(msg) => return Err(msg),
-        };
-        parse_request(request, &mut socket).await;
+    loop {
+        let (mut stream, _) = listener.accept().await?;
+        tokio::spawn(async move {
+            let request = match read_stream(&mut stream).await {
+                Ok(req) => req,
+                Err(msg) => return Err(msg),
+            };
+            parse_request(request, &mut stream).await;
+            Ok(())
+        });
     }
-
-    Ok(())
 }
 
 async fn read_stream(stream: &mut TcpStream) -> tokio::io::Result<Request> {
