@@ -39,19 +39,28 @@ fn parse_request(request: Request, mut stream: &TcpStream) {
         "echo" => {
             let echoed_string: String = iter.collect::<Vec<&str>>().join("/");
 
-            format!(
-                "{}\r\n{}\r\nContent-Length: {}\r\n\r\n{}\r\n",
-                "HTTP/1.1 200 OK",
-                "Content-Type: text/plain",
-                echoed_string.len(),
-                echoed_string
-            )
+            format_ok_response(echoed_string)
+        }
+        "user-agent" => {
+            let user_agent = request.headers.get("User-Agent").unwrap();
+
+            format_ok_response(user_agent.to_owned())
         }
         "" => format!("HTTP/1.1 200 OK\r\n\r\n"),
         _ => format!("HTTP/1.1 404 Not Found\r\n\r\n"),
     };
 
     let _ = stream.write(response.as_bytes());
+}
+
+fn format_ok_response(body: String) -> String {
+    format!(
+        "{}\r\n{}\r\nContent-Length: {}\r\n\r\n{}\r\n",
+        "HTTP/1.1 200 OK",
+        "Content-Type: text/plain",
+        body.len(),
+        body
+    )
 }
 
 struct Request {
