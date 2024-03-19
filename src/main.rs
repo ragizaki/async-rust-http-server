@@ -90,7 +90,7 @@ impl FromStr for Request {
             if header.is_empty() {
                 break;
             }
-            let mut header_iter = header.split_whitespace();
+            let mut header_iter = header.split(": ");
             let key = header_iter.next().unwrap().to_string();
             let val = header_iter.next().unwrap().to_string();
             headers.insert(key, val);
