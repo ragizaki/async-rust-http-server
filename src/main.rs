@@ -1,35 +1,33 @@
 use std::collections::HashMap;
-use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream};
 use std::str::FromStr;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
 const MAX_BUF_SIZE: usize = 1024;
 
-fn main() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:4221").await?;
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                let request = read_stream(&mut stream);
-                parse_request(request, &mut stream);
-            }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
+    while let Ok((mut socket, _)) = listener.accept().await {
+        let request = match read_stream(&mut socket).await {
+            Ok(req) => req,
+            Err(msg) => return Err(msg),
+        };
+        parse_request(request, &mut socket).await;
     }
+
     Ok(())
 }
 
-fn read_stream(mut stream: &TcpStream) -> Request {
+async fn read_stream(stream: &mut TcpStream) -> tokio::io::Result<Request> {
     let mut buf = [0; MAX_BUF_SIZE];
-    let num_bytes = stream.read(&mut buf).unwrap();
+    let num_bytes = stream.read(&mut buf).await?;
     let data = std::str::from_utf8(&buf[..num_bytes]).unwrap();
-    Request::from_str(data).expect("Failed to parse data")
+    Ok(Request::from_str(data).expect("Failed to parse data"))
 }
 
-fn parse_request(request: Request, mut stream: &TcpStream) {
+async fn parse_request(request: Request, stream: &mut TcpStream) {
     let mut iter = request.path.split("/");
 
     // throw away value
@@ -50,7 +48,7 @@ fn parse_request(request: Request, mut stream: &TcpStream) {
         _ => format!("HTTP/1.1 404 Not Found\r\n\r\n"),
     };
 
-    let _ = stream.write(response.as_bytes());
+    let _ = stream.write(response.as_bytes()).await;
 }
 
 fn format_ok_response(body: String) -> String {
