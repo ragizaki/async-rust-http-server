@@ -25,7 +25,7 @@ impl FromStr for Request {
 
         // processing headers
         let mut headers = HashMap::new();
-        while let Some(header) = iter.next() {
+        for header in iter {
             if header.is_empty() {
                 break;
             }

@@ -2,6 +2,8 @@ mod request;
 mod response;
 
 use request::Request;
+use response::{HttpStatus, Response};
+use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
@@ -54,7 +56,7 @@ async fn read_stream(stream: &mut TcpStream) -> io::Result<Request> {
 }
 
 async fn write_stream(output: String, stream: &mut TcpStream) -> io::Result<()> {
-    stream.write(output.as_bytes()).await?;
+    stream.write_all(output.as_bytes()).await?;
     stream.flush().await
 }
 
@@ -62,50 +64,54 @@ async fn parse_request(
     request: Request,
     directory: Arc<Option<String>>,
 ) -> tokio::io::Result<String> {
-    let mut iter = request.path.split("/");
+    let mut iter = request.path.split('/');
 
     // throw away value
     iter.next();
 
     let response = match iter.next().unwrap() {
         "echo" => {
-            let echoed_string: String = iter.collect::<Vec<&str>>().join("/");
-            let content_type = "text/plain";
+            let mut headers = HashMap::new();
+            let body: String = iter.collect::<Vec<&str>>().join("/");
+            headers.insert("Content-Type".to_string(), "text/plain".to_string());
+            headers.insert("Content-Length".to_string(), body.len().to_string());
 
-            format_ok_response(echoed_string, content_type)
+            Response::new(HttpStatus::Ok, Some(headers), Some(body))
         }
         "user-agent" => {
+            let mut headers = HashMap::new();
             let user_agent = request.headers.get("User-Agent").unwrap();
-            let content_type = "text/plain";
+            headers.insert("Content-Type".to_string(), "text/plain".to_string());
+            headers.insert("Content-Length".to_string(), user_agent.len().to_string());
 
-            format_ok_response(user_agent.to_owned(), content_type)
+            Response::new(HttpStatus::Ok, Some(headers), Some(user_agent.to_owned()))
         }
         "files" => {
             if let Some(ref dir) = *directory {
                 let filename = iter.next().unwrap();
+                let contents = read_file(dir.to_owned(), filename).await;
+                match &contents {
+                    Ok(msg) => {
+                        let mut headers = HashMap::new();
+                        headers.insert(
+                            "Content-Type".to_string(),
+                            "application/octet-stream".to_string(),
+                        );
+                        headers.insert("Content-Length".to_string(), msg.len().to_string());
 
-                let contents = read_file(dir.to_owned(), filename).await?;
-                let content_type = "application/octet-stream";
-                format_ok_response(contents, content_type)
+                        Response::new(HttpStatus::Ok, Some(headers), Some(msg.to_owned()))
+                    }
+                    Err(_) => Response::new(HttpStatus::NotFound, None, None),
+                }
             } else {
                 return Err(io::Error::new(io::ErrorKind::NotFound, "Problem reading"));
             }
         }
-        "" => format!("HTTP/1.1 200 OK\r\n\r\n"),
-        _ => format!("HTTP/1.1 404 Not Found\r\n\r\n"),
+        "" => Response::new(HttpStatus::Ok, None, None),
+        _ => Response::new(HttpStatus::NotFound, None, None),
     };
 
-    Ok(response)
-}
-
-fn format_ok_response(body: String, content_type: &str) -> String {
-    format!(
-        "{}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n{}\r\n",
-        "HTTP/1.1 200 OK",
-        content_type,
-        body.len(),
-        body
-    )
+    Ok(response.to_string())
 }
 
 async fn read_file(directory: String, filename: &str) -> tokio::io::Result<String> {
@@ -113,7 +119,10 @@ async fn read_file(directory: String, filename: &str) -> tokio::io::Result<Strin
     let file_path = Path::new(&file_path);
 
     if !file_path.exists() {
-        Ok(String::from("HTTP/1.1 404 Not Found\r\n\r\n"))
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            String::from("Couldn't find file"),
+        ))
     } else {
         let mut file = File::open(file_path).await?;
         let mut buf = [0; MAX_BUF_SIZE];

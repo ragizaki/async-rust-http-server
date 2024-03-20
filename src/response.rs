@@ -1,39 +1,53 @@
-// use std::collections::HashMap;
+use std::collections::HashMap;
 
-// enum HttpStatus {
-//     Ok,
-//     NotFound,
-// }
+pub enum HttpStatus {
+    Ok,
+    NotFound,
+}
 
-// pub struct Response {
-//     status: HttpStatus,
-//     headers: HashMap<String, String>,
-//     body: String,
-// }
+pub struct Response {
+    status: HttpStatus,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+}
 
-// impl Response {
-//     fn format_status_line(&self) -> String {
-//         match self.status {
-//             HttpStatus::Ok => String::from("HTTP/1.1 200 OK\r\n\r\n"),
-//             HttpStatus::NotFound => String::from("HTTP/1.1 404 Not Found\r\n\r\n"),
-//         }
-//     }
+impl Response {
+    pub fn new(
+        status: HttpStatus,
+        headers: Option<HashMap<String, String>>,
+        body: Option<String>,
+    ) -> Self {
+        Self {
+            status,
+            headers,
+            body,
+        }
+    }
 
-//     fn format_headers(&self) -> String {
-//         let mut result = String::new();
+    fn status_to_string(&self) -> String {
+        match self.status {
+            HttpStatus::Ok => String::from("200 OK"),
+            HttpStatus::NotFound => String::from("404 Not Found"),
+        }
+    }
+}
 
-//         for (key, value) in self {
-//             result.push_str(&format!("{}: {}\n", key, value));
-//         }
-//         result
-//     }
-// }
+impl ToString for Response {
+    fn to_string(&self) -> String {
+        let mut response = format!("HTTP/1.1 {}\r\n", self.status_to_string());
 
-// impl ToString for Response {
-//     fn to_string(&self) -> String {
-//         let result = String::new();
+        if let Some(headers) = &self.headers {
+            for (key, value) in headers {
+                response.push_str(&format!("{}: {}\r\n", key, value));
+            }
+        }
 
-//         result.push_str(&self.format_status_line());
-//         result.push_str(&self.format_headers());
-//     }
-// }
+        response.push_str("\r\n");
+
+        if let Some(body) = &self.body {
+            response.push_str(body);
+        }
+
+        response
+    }
+}
