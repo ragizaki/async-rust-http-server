@@ -8,6 +8,7 @@ pub struct Request {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+
 pub struct ParseRequestError;
 
 impl FromStr for Request {
