@@ -1,14 +1,14 @@
 mod request;
 mod response;
 
-use request::Request;
+use request::{HttpMethod, Request};
 use response::{HttpStatus, Response};
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::fs::File;
+use tokio::fs;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -27,23 +27,22 @@ async fn main() -> std::io::Result<()> {
     });
 
     let directory = Arc::new(directory.map(|dir| dir.to_owned()));
-
     let listener = TcpListener::bind("127.0.0.1:4221").await?;
 
     loop {
         let (mut stream, _) = listener.accept().await?;
-        let directory = Arc::clone(&directory);
+        let dir_clone1 = Arc::clone(&directory);
+        let dir_clone2 = Arc::clone(&directory);
 
         tokio::spawn(async move {
-            let request = match read_stream(&mut stream).await {
-                Ok(req) => req,
-                Err(msg) => return Err(msg),
-            };
-            let response = match parse_request(request, directory).await {
-                Ok(res) => res,
-                Err(msg) => return Err(msg),
-            };
-            write_stream(response, &mut stream).await
+            let request = read_stream(&mut stream).await?;
+            match request.method {
+                HttpMethod::Get => {
+                    let response = parse_request(request, dir_clone1).await?;
+                    write_stream(response, &mut stream).await
+                }
+                HttpMethod::Post => save_file(request, dir_clone2).await,
+            }
         });
     }
 }
@@ -60,10 +59,7 @@ async fn write_stream(output: String, stream: &mut TcpStream) -> io::Result<()> 
     stream.flush().await
 }
 
-async fn parse_request(
-    request: Request,
-    directory: Arc<Option<String>>,
-) -> tokio::io::Result<String> {
+async fn parse_request(request: Request, directory: Arc<Option<String>>) -> io::Result<String> {
     let mut iter = request.path.split('/');
 
     // throw away value
@@ -114,7 +110,7 @@ async fn parse_request(
     Ok(response.to_string())
 }
 
-async fn read_file(directory: String, filename: &str) -> tokio::io::Result<String> {
+async fn read_file(directory: String, filename: &str) -> io::Result<String> {
     let file_path = format!("{directory}/{filename}");
     let file_path = Path::new(&file_path);
 
@@ -124,7 +120,7 @@ async fn read_file(directory: String, filename: &str) -> tokio::io::Result<Strin
             String::from("Couldn't find file"),
         ))
     } else {
-        let mut file = File::open(file_path).await?;
+        let mut file = fs::File::open(file_path).await?;
         let mut buf = [0; MAX_BUF_SIZE];
 
         let num_bytes = file.read(&mut buf).await?;
@@ -133,4 +129,22 @@ async fn read_file(directory: String, filename: &str) -> tokio::io::Result<Strin
 
         Ok(contents)
     }
+}
+
+async fn save_file(request: Request, directory: Arc<Option<String>>) -> io::Result<()> {
+    let end_path = request.path.split('/').skip(2).next().unwrap();
+    let directory_ref = directory
+        .as_deref()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Directory not provided"))?;
+
+    let file_path = format!("{}/{}", directory_ref, end_path);
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(file_path)
+        .await?;
+
+    file.write_all(request.body.unwrap().as_bytes()).await?;
+
+    Ok(())
 }

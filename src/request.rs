@@ -1,10 +1,16 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+pub enum HttpMethod {
+    Get,
+    Post,
+}
+
 pub struct Request {
-    pub method: String,
+    pub method: HttpMethod,
     pub path: String,
     pub headers: HashMap<String, String>,
+    pub body: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -20,12 +26,16 @@ impl FromStr for Request {
         // processing status line
         let status_line = iter.next().unwrap();
         let mut parts = status_line.split_whitespace();
-        let method = parts.next().unwrap().to_string();
+        let method = match parts.next().unwrap() {
+            "GET" => HttpMethod::Get,
+            "POST" => HttpMethod::Post,
+            _ => return Err(ParseRequestError),
+        };
         let path = parts.next().unwrap().to_string();
 
         // processing headers
         let mut headers = HashMap::new();
-        for header in iter {
+        for header in iter.clone() {
             if header.is_empty() {
                 break;
             }
@@ -35,10 +45,22 @@ impl FromStr for Request {
             headers.insert(key, val);
         }
 
-        Ok(Request {
-            method,
-            path,
-            headers,
-        })
+        match method {
+            HttpMethod::Get => Ok(Request {
+                method,
+                path,
+                headers,
+                body: None,
+            }),
+            HttpMethod::Post => {
+                let body = iter.collect::<String>();
+                Ok(Request {
+                    method,
+                    path,
+                    headers,
+                    body: Some(body),
+                })
+            }
+        }
     }
 }
