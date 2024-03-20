@@ -36,13 +36,13 @@ async fn main() -> std::io::Result<()> {
 
         tokio::spawn(async move {
             let request = read_stream(&mut stream).await?;
+            let response = parse_request(&request, dir_clone1).await?;
+
             match request.method {
-                HttpMethod::Get => {
-                    let response = parse_request(request, dir_clone1).await?;
-                    write_stream(response, &mut stream).await
-                }
-                HttpMethod::Post => save_file(request, dir_clone2).await,
+                HttpMethod::Get => (),
+                HttpMethod::Post => save_file(request, dir_clone2).await?,
             }
+            write_stream(response, &mut stream).await
         });
     }
 }
@@ -59,7 +59,7 @@ async fn write_stream(output: String, stream: &mut TcpStream) -> io::Result<()> 
     stream.flush().await
 }
 
-async fn parse_request(request: Request, directory: Arc<Option<String>>) -> io::Result<String> {
+async fn parse_request(request: &Request, directory: Arc<Option<String>>) -> io::Result<String> {
     let mut iter = request.path.split('/');
 
     // throw away value
@@ -82,10 +82,11 @@ async fn parse_request(request: Request, directory: Arc<Option<String>>) -> io::
 
             Response::new(HttpStatus::Ok, Some(headers), Some(user_agent.to_owned()))
         }
-        "files" => {
-            if let Some(ref dir) = *directory {
+        "files" => match request.method {
+            HttpMethod::Post => Response::new(HttpStatus::Created, None, None),
+            HttpMethod::Get => {
                 let filename = iter.next().unwrap();
-                let contents = read_file(dir.to_owned(), filename).await;
+                let contents = read_file(directory.as_deref().unwrap().to_string(), filename).await;
                 match &contents {
                     Ok(msg) => {
                         let mut headers = HashMap::new();
@@ -99,10 +100,8 @@ async fn parse_request(request: Request, directory: Arc<Option<String>>) -> io::
                     }
                     Err(_) => Response::new(HttpStatus::NotFound, None, None),
                 }
-            } else {
-                return Err(io::Error::new(io::ErrorKind::NotFound, "Problem reading"));
             }
-        }
+        },
         "" => Response::new(HttpStatus::Ok, None, None),
         _ => Response::new(HttpStatus::NotFound, None, None),
     };
