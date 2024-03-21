@@ -1,39 +1,29 @@
 [![progress-banner](https://backend.codecrafters.io/progress/http-server/b3f48794-d610-4d13-971d-aa461f9b2bc7)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for Rust solutions to the
+This is my implementation of CodeCrafter's
 ["Build Your Own HTTP server" Challenge](https://app.codecrafters.io/courses/http-server/overview).
 
-[HTTP](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol) is the
-protocol that powers the web. In this challenge, you'll build a HTTP/1.1 server
-that is capable of serving multiple clients.
+Implemented using Rust. The server is able to handle concurrent connections using Tokio threads and async file, read and write operations.
 
-Along the way you'll learn about TCP servers,
-[HTTP request syntax](https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html),
-and more.
+Supports:
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+1. GET requests
 
-# Passing the first stage
+   - `/` returns a 200 OK response
+   - `/echo/<filepath>` echoes back `filepath` as a response with 200 OK
+   - `/user-agent` respones with the request `User-Agent` in the body with 200 OK
+   - `/files/<filepath>` returns the file located at `/directory/filepath` with 200 OK if it exists, otherwise 404 Not Found (directory specified in `./your_server.sh --directory <directory>`)
 
-The entry point for your HTTP server implementation is in `src/main.rs`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
+2. POST requests:
+   - `/files/<filepath>` creates a file in `/directory/filepath` with the contents specified in the request body
 
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
-```
+Learned a lot about the following Rust-specific areas
 
-Time to move on to the next stage!
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `cargo (1.70)` installed locally
-1. Run `./your_server.sh` to run your program, which is implemented in
-   `src/main.rs`. This command compiles your Rust project, so it might be slow
-   the first time you run it. Subsequent runs will be fast.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+- Async programming with Tokio (file reading, writing/reading over a TCP connection)
+- Concurrency with Tokio threads
+- Iterators
+- Traits (implemented `FromStr` and `ToString` on response and request structs)
+- Error Handling (`Err` variant of `Result`, `None` variant of `Option`, error propagation, etc)
+- Pattern Matching using `match`
+- Shared variables across threads using Atomically Referenced Counters (`Arc`)
+- Enums
