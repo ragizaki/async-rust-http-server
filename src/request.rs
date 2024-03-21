@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-#[derive(Clone)]
 pub enum HttpMethod {
     Get,
     Post,
 }
 
-#[derive(Clone)]
 pub struct Request {
     pub method: HttpMethod,
     pub path: String,
@@ -22,46 +20,42 @@ impl FromStr for Request {
     type Err = ParseRequestError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let chunks = s.split("\r\n\r\n").collect::<Vec<_>>();
-        let mut iter = chunks[0].lines();
+        let mut parts = s.split("\r\n\r\n");
+        let mut header_lines = parts.next().ok_or(ParseRequestError)?.lines();
+        let body = parts.next();
 
-        // processing status line
-        let mut status_line = iter.next().unwrap().split_whitespace();
-        let method = match status_line.next().unwrap() {
+        let mut status_line_parts = header_lines
+            .next()
+            .ok_or(ParseRequestError)?
+            .split_whitespace();
+
+        let method_str = status_line_parts.next().ok_or(ParseRequestError)?;
+        let method = match method_str {
             "GET" => HttpMethod::Get,
             "POST" => HttpMethod::Post,
             _ => return Err(ParseRequestError),
         };
-        let path = status_line.next().unwrap().to_string();
 
-        // processing headers
-        let mut headers = HashMap::new();
-        for header in iter {
-            if header.is_empty() {
-                break;
-            }
-            let mut header_iter = header.split(": ");
-            let key = header_iter.next().unwrap().to_string();
-            let val = header_iter.next().unwrap().to_string();
-            headers.insert(key, val);
-        }
+        let path = status_line_parts
+            .next()
+            .ok_or(ParseRequestError)?
+            .to_string();
 
-        match method {
-            HttpMethod::Get => Ok(Request {
-                method,
-                path,
-                headers,
-                body: None,
-            }),
-            HttpMethod::Post => {
-                let body = chunks[1];
-                Ok(Request {
-                    method,
-                    path,
-                    headers,
-                    body: Some(body.to_owned()),
-                })
-            }
-        }
+        let headers = header_lines
+            .take_while(|line| !line.trim().is_empty())
+            .filter_map(|line| {
+                let mut parts = line.split(": ");
+                let key = parts.next()?.to_string();
+                let value = parts.next()?.to_string();
+                Some((key, value))
+            })
+            .collect();
+
+        Ok(Request {
+            method,
+            path,
+            headers,
+            body: body.map(String::from),
+        })
     }
 }

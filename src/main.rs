@@ -131,7 +131,7 @@ async fn read_file(directory: String, filename: &str) -> io::Result<String> {
 }
 
 async fn save_file(request: Request, directory: Arc<Option<String>>) -> io::Result<()> {
-    let end_path = request.path.split('/').skip(2).next().unwrap();
+    let end_path = request.path.split('/').nth(2).unwrap();
     let directory_ref = directory
         .as_deref()
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Directory not provided"))?;
