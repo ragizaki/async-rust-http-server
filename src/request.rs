@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+#[derive(Clone)]
 pub enum HttpMethod {
     Get,
     Post,
 }
 
+#[derive(Clone)]
 pub struct Request {
     pub method: HttpMethod,
     pub path: String,
@@ -14,28 +16,27 @@ pub struct Request {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-
 pub struct ParseRequestError;
 
 impl FromStr for Request {
     type Err = ParseRequestError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut iter = s.lines();
+        let chunks = s.split("\r\n\r\n").collect::<Vec<_>>();
+        let mut iter = chunks[0].lines();
 
         // processing status line
-        let status_line = iter.next().unwrap();
-        let mut parts = status_line.split_whitespace();
-        let method = match parts.next().unwrap() {
+        let mut status_line = iter.next().unwrap().split_whitespace();
+        let method = match status_line.next().unwrap() {
             "GET" => HttpMethod::Get,
             "POST" => HttpMethod::Post,
             _ => return Err(ParseRequestError),
         };
-        let path = parts.next().unwrap().to_string();
+        let path = status_line.next().unwrap().to_string();
 
         // processing headers
         let mut headers = HashMap::new();
-        for header in iter.clone() {
+        for header in iter {
             if header.is_empty() {
                 break;
             }
@@ -53,12 +54,12 @@ impl FromStr for Request {
                 body: None,
             }),
             HttpMethod::Post => {
-                let body = iter.collect::<String>();
+                let body = chunks[1];
                 Ok(Request {
                     method,
                     path,
                     headers,
-                    body: Some(body),
+                    body: Some(body.to_owned()),
                 })
             }
         }
